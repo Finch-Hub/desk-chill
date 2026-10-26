@@ -392,9 +392,23 @@ function truncate(s, n) {
   return t.length > n ? `${t.slice(0, n)}…` : t;
 }
 
+/** 块正文的真实起点：章标题已由 <h2> 渲染，正文里那行标题要去掉，避免同一行出现两次 */
+function bodyStart(ch) {
+  if (!ch.title) return ch.start;
+  const t = state.txtText;
+  const head = t.slice(ch.start, Math.min(ch.end, ch.start + ch.title.length + 12));
+  const at = head.indexOf(ch.title);
+  // 只在标题紧贴块开头时才跳过（正文中间偶然出现的同名文本不动）
+  if (at < 0 || head.slice(0, at).trim() !== '') return ch.start;
+  let s = ch.start + at + ch.title.length;
+  while (s < ch.end && /[ \t\u3000]/.test(t[s])) s++; // 吃掉标题行尾空白，不跨行
+  return s;
+}
+
 /** 块 HTML：正文 pre-wrap 转义；有搜索词时块内命中包 <mark> */
 function chunkHtml(ch) {
-  const text = state.txtText.slice(ch.start, ch.end);
+  const start = bodyStart(ch);
+  const text = state.txtText.slice(start, ch.end);
   if (!state.findQuery) return escapeHtml(text);
   const lq = state.findQuery.toLowerCase();
   if (!lq) return escapeHtml(text);
@@ -402,7 +416,7 @@ function chunkHtml(ch) {
   // 全局命中 -> 块内下标（runFind 时给每条命中编了号 h.i）
   const hitAt = new Map();
   (state.findHits || []).forEach((h) => {
-    const local = h.at - ch.start;
+    const local = h.at - start;
     if (local >= 0 && local < text.length) hitAt.set(local, h.i);
   });
   let out = '';

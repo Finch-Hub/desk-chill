@@ -1,103 +1,266 @@
-# 鱼塘（desk-chill）MVP v0.1
+# 鱼塘 · desk-chill
 
-单窗口「本地阅读 + 内置浏览 + 贴边收起 + 老板键」的 Windows 桌面工具（鱼塘 / desk-chill）。
-按《摸鱼一体工具 MVP PRD v0.1》P0 四件套实现，全部数据仅存本机。
+**A lightweight, dockable desktop viewer. Quick hide hotkey for your desk chill time.**
 
-## 功能（P0 四件套）
+**轻量贴边阅览工具，支持老板键一键隐藏，工位小憩。**
 
-| 模块 | 说明 |
-|------|------|
-| 全局布局 | **流式响应式**：窗口可在 520×380 ~ 全屏任意长宽下使用；宽度 ≤900px 侧栏自动变抽屉（点遮罩关闭）、≤720px 隐藏品牌名收紧顶栏、≤600px 收掉次要信息；高度 ≤620px 压缩纵向留白；正文行宽上限 760px 居中，超宽屏不拉成横幅；所有断点均无横向滚动 |
-| FR-1 本地阅读器 | TXT（UTF-8 / GBK / BIG5 / UTF-16 自动识别，乱码可手动换编码）、PDF（pdf.js 渲染、文本可复制、懒加载）；字号 / 行距 / 背景（白·米·护眼·暗）/ 字体；章节目录自动识别（第 X 章 / 序章…）；书签；全文搜索；进度自动保存与续读（节流 1s，原子写入） |
-| FR-2 贴边收起 | 拖窗口到屏幕左/右/上边缘松开 → 收成 4px 边条（可调 2–8px）；**鼠标移到边条上自动展开，鼠标移开窗口自动收回边条**（展开位置吸附到边缘，不会跳回屏幕中间）；展开后拖动窗口或最大化即取消自动收起，也可用「固定展开」保持常开；方向、动画时长可调；重启恢复上次贴边状态 |
-| FR-3 内置浏览器 | Chromium（WebContentsView）渲染；**工具栏全部为矢量图标（36×32 点击区、可用/禁用态清晰）**；多标签**每页带 × 关闭**、+ 新标签；地址栏 URL / 关键词搜索；前进后退刷新；B站 / 小红书 / 知乎 / 微博 / 抖音快捷入口（可编辑）；`persist:moyu` 会话保留登录态；断网 / 证书错误 / DNS 失败显示**带错误码与中文原因**的错误页（可重试、清缓存重试）；**拦截 `bytedance://`、`weixin://` 等客户端协议**（应用内提示，不弹 Microsoft Store，需要时可「用系统打开」）；**网络可调**：代理跟随系统 / 直连 / 手动、真实 Chrome UA、关闭 QUIC、证书错误可选信任 |
-| FR-4 老板键与托盘 | 全局热键默认 F8（可改写，冲突会提示）；按下即窗口 + 任务栏入口消失，仅剩托盘图标；再按恢复到隐藏前状态（展开或贴边均可）；托盘菜单退出需二次确认，退出前强制保存进度 |
+---
 
-## 开发运行
+![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron\&logoColor=white)
+
+![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D4?logo=windows\&logoColor=white)
+
+![Version](https://img.shields.io/badge/version-0.1.0-blue)
+
+![License](https://img.shields.io/badge/license-MIT-green)
+
+「鱼塘」是一个把**本地阅读器**、**贴边收起**、**内置浏览器**和**老板键**装进同一个窗口的 Windows 桌面工具。
+
+工作间隙想看两页小说、翻翻收藏的长文，又不想在任务栏留下一排痕迹——  
+把它往屏幕边缘一贴，只剩一条 4px 的细线；按一下 `F8`，窗口连同任务栏入口一起消失。
+
+> One window that reads your local TXT/PDF library and browses the web. Dock it to a screen  
+> edge and it collapses into a 4px strip; press `F8` and it vanishes from the taskbar.  
+> Everything stays on your machine — no account, no cloud, no telemetry.
+
+*名字来源：摸鱼的地方，叫鱼塘。*
+
+---
+
+## 界面预览
+
+![阅读界面](assets/screenshot-reader.png)
+
+*阅读：左侧章节目录跟随滚动高亮，正文连贯滚动，进度精确到章内字符位置。*
+
+![内置浏览器](assets/screenshot-browser.png)
+
+*浏览：内置 Chromium，多标签、地址栏、快捷入口，登录态在同一次运行内保留。*
+
+---
+
+## 为什么是「一个窗口」
+
+大多数摸鱼方案要么是纯阅读器（看不了网页），要么是改过的浏览器（藏不住）。  
+鱼塘把两件事合成一个可隐藏的窗口，并让窗口本身成为「可以贴边收纳的物件」：
+
+- **阅读时**是阅读器：无边框、无账号、无同步，只要一个 TXT / PDF。
+- **想看网页时**切一个标签，内置 Chromium 直接渲染，登录态留住。
+- **有人过来时**按 `F8` 或让鼠标移开——窗口缩成边条或整体消失，不占任务栏。
+- **全程离线优先**：书库、进度、设置、日志全部只落在本机 `%APPDATA%`，没有账号体系、没有云端。
+
+---
+
+## 功能特性
+
+### 本地阅读器（TXT / PDF）
+
+| 能力           | 说明                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------- |
+| **TXT 连贯滚动** | 主流阅读器交互：正文是一条连续长流，章节标题作为分隔。按章节分块 + 可视区前后各预载 2 块 + 双向追加/回收，**830 万字实测约 0.7s 打开**，滚动不掉帧 |
+| **滚轮两种模式**   | 默认「连贯滚动」（网页式，滚轮即滚），设置里可切换「整屏翻动」（带缓动动画）                                                |
+| **编码自动识别**   | UTF-8 / UTF-16LE / UTF-16BE / GBK / BIG5，BOM 优先、严格 UTF-8 校验、chardet 采样兜底；识别错可手动换编码    |
+| **PDF**      | pdf.js 逐页 canvas 渲染，IntersectionObserver 懒加载；文本层可选中复制、可全文搜索                           |
+| **排版可调**     | 字号、行距、字体、四种背景（白 / 米 / 护眼 / 暗），行宽上限 760px 居中，超宽屏不拉成横幅                                  |
+| **章节目录**     | 自动识别「第 X 章 / 序章 / 楔子…」，目录跟随滚动高亮，点击按字符偏移精确跳转                                           |
+| **书签与搜索**    | 书签记录全局字符偏移（±600 字视为同一处），全文搜索命中后直接滚到位置                                                 |
+| **精确续读**     | 进度按「视口顶部字符偏移」保存（节流 1s + 原子写入），重开书回到原位置，不是回到章首                                         |
+
+### 贴边收起
+
+- 窗口拖到屏幕左 / 右 / 上边缘松手 → 收成 **2–8px 可调**的边条
+- **鼠标移到边条自动展开，移开自动收回**；展开位置吸附在边缘，不会跳回屏幕中央
+- 展开后拖动窗口或最大化即取消自动收起；也可「固定展开」保持常开
+- 方向、动画时长可调，重启恢复上次贴边状态
+
+### 内置浏览器
+
+- Chromium（`WebContentsView`）渲染，多标签，**每个标签自带 × 关闭**
+- 地址栏支持 URL 直连与关键词搜索，前进 / 后退 / 刷新 / 缩放
+- 快捷入口默认 **B站 / 小红书 / 知乎 / 微博 / 抖音**（可编辑）
+- 会话持久化（`persist:` 分区），同一次运行内保留登录态
+- **错误页带错误码与中文原因**：断网 / 证书 / DNS 失败都能看清问题，可重试、可清缓存重试、可交给系统浏览器
+- **客户端协议拦截**：`bytedance://`、`weixin://`、`snssdk1128://` 这类链接默认在应用内提示，不再弹出「请在 Microsoft Store 中查找」；确实需要时可点「用系统打开」
+- 网络可调：代理跟随系统 / 直连 / 手动，真实 Chrome UA，可关闭 QUIC，证书错误可选信任
+
+### 老板键与托盘
+
+- 全局热键默认 `F8`，可自定义，注册冲突会明确提示
+- 按下后窗口 + 任务栏入口一起消失，只留托盘图标；再按恢复隐藏前的状态（展开或贴边都行）
+- 托盘菜单退出需二次确认，退出前强制保存进度
+
+### 响应式布局
+
+窗口在 520×380 到全屏之间任意长宽都能用：宽度 ≤900px 侧栏变抽屉，≤720px 收紧顶栏，≤600px 收掉次要信息，高度 ≤620px 压缩纵向留白。四组断点均无横向滚动。
+
+---
+
+## 快速开始
+
+### 直接使用（普通用户）
+
+从 [Releases](https://github.com/Finch-Hub/desk-chill/releases) 下载：
+
+| 文件                      | 说明                          |
+| ----------------------- | --------------------------- |
+| `鱼塘-0.1.0-x64.exe`      | 安装向导版（桌面快捷方式 + 开始菜单 + 卸载入口） |
+| `鱼塘-0.1.0-portable.exe` | 便携版，单文件双击即用                 |
+
+> 程序未做代码签名，Windows Defender / 360 等可能误报。个人使用可加白名单；对外分发建议购买签名证书。
+
+### 从源码运行（开发者）
+
+要求：**Node.js 18+**、Windows 10/11。
 
 ```bash
-npm install        # 已配置 Electron 镜像时无需额外操作
-npm start          # 启动应用
+git clone https://github.com/Finch-Hub/desk-chill.git
+cd desk-chill
+npm install
+npm start          # 启动
 npm run dev        # 启动 + DevTools
-npm run check      # 渲染层 ESM 语法预检（build 前自动执行）
-npm run test:dock  # 贴边状态机单测（不需要 GUI，可控时钟 + 可控光标）
-npm run test:url   # 内置浏览器 URL 守卫单测（哪些协议放行 / 拦截）
-npm run typecheck  # tsc --noEmit + 上面的语法预检
 ```
 
-> 本机沙箱注入 `ELECTRON_RUN_AS_NODE=1` 会导致 electron postinstall 跳过二进制下载。
-> 若 `node_modules/electron/path.txt` 不存在，执行：
-> `unset ELECTRON_RUN_AS_NODE; ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ node node_modules/electron/install.js`
-
-### 自检脚本
+常用校验命令：
 
 ```bash
-MOYU_E2E=1 npm run dev           # 书库/阅读/PDF/贴边 + 15MB 大文件专项
-MOYU_E2E_BROWSER=1 npm run dev   # 浏览器专项（首页/导航/查找/标签/错误页/真站点/快捷键）
-MOYU_E2E_LAYOUT=1 npm run dev    # 响应式布局专项（8 组长宽 × 4 视图，检查横向溢出与越界）
-MOYU_E2E_NET=1 npm run dev       # 网络专项（自签名证书站 + 真站点 + 信任证书开关）
+npm run check      # 渲染层 ESM 语法预检
+npm run test:dock  # 贴边状态机单测（无需 GUI，可控时钟 + 可控光标）
+npm run test:url   # 浏览器 URL 守卫单测（协议放行/拦截）
+npm run typecheck  # tsc --noEmit + 上面三项
 ```
 
-> 跑 e2e 建议加 `--user-data-dir=...` 指向临时目录：既不碰你真实的书库/进度，
-> 也避免单实例锁导致新实例静默退出（日志为空、exit=0）。
+> 若 `node_modules/electron/path.txt` 不存在（`npm install` 时 Electron 二进制未下载），执行：  
+> `node node_modules/electron/install.js`（国内可先设 `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/`）
 
-截图落在 `.shots/`。注意：`webContents.capturePage()` **不包含** `WebContentsView`
-这类原生子视图，判断「网页是否真的显示在屏幕上」要看脚本里的整屏截图（`.shots/b-*-screen.png`）。
+---
+
+## 使用方式
+
+1. **导入书**：`Ctrl+O` 选 TXT / PDF，或把文件拖进窗口。
+2. **开始读**：左侧目录点章节，或直接滚轮滚动；进度自动保存，下次打开原位置。
+3. **贴边**：把窗口拖到屏幕左/右/上边缘松手，它会自己收起来，鼠标移上去再展开。
+4. **藏起来**：按 `F8`。
+
+### 快捷键
+
+| 键                                                                 | 作用                                     |
+| ----------------------------------------------------------------- | -------------------------------------- |
+| `F8`                                                              | 老板键：隐藏 / 恢复（可改）                        |
+| `Ctrl+1` / `Ctrl+2` / `Ctrl+,`                                    | 书库 / 浏览 / 设置                           |
+| `Ctrl+O`                                                          | 导入文件                                   |
+| `PgUp` / `PgDn` / `空格`                                            | 整屏翻动（连贯滚动模式下滚轮即滚）                      |
+| `Home` / `End`                                                    | 跳到文首 / 文末                              |
+| `Ctrl+=` / `Ctrl+-`                                               | 字号加减                                   |
+| `Ctrl+F`                                                          | 全文搜索（阅读）/ 页内查找（浏览）                     |
+| 浏览器内 `Ctrl+T` / `Ctrl+W` / `Ctrl+L` / `Ctrl+R` / `Ctrl+=` `-` `0` | 新标签 / 关标签 / 聚焦地址栏 / 刷新 / 缩放（焦点在网页里也生效） |
+| `Esc`（浏览）                                                         | 关查找条，否则回阅读（焦点在网页里也生效）                  |
+
+---
+
+## 数据与隐私
+
+所有数据落在 `%APPDATA%\desk-chill\`，**没有账号、没有云端、埋点不上传**：
+
+```
+%APPDATA%\desk-chill\
+├── data\
+│   ├── library.json    书库
+│   ├── progress.json   阅读进度 + 书签
+│   ├── settings.json   设置
+│   └── window.json     窗口与贴边状态
+└── logs\
+    └── YYYY-MM-DD.log  本地日志（按日轮转，保留 30 天）
+```
+
+四个 JSON 均为**原子写入**（临时文件 + rename），断电不写坏。数据目录固定为英文路径，升级或改名不丢数据。
+
+---
+
+## 项目结构
+
+```
+desk-chill/
+├── src/
+│   ├── main/                    主进程（CommonJS）
+│   │   ├── main.js              窗口 / IPC / 托盘 / 老板键 / 浏览器视图
+│   │   ├── dock.js              贴边状态机（NORMAL / DOCKED / PEEKING / PINNED）
+│   │   ├── book.js              TXT 编码检测 + 章节识别，PDF 索引
+│   │   ├── store.js             原子读写 %APPDATA%/desk-chill
+│   │   ├── urlguard.js          浏览器协议白名单 / 客户端协议拦截
+│   │   ├── preload.js           contextBridge 暴露的 IPC 面
+│   │   └── home.html            新标签页
+│   ├── renderer/                渲染层（原生 ES Module，无框架）
+│   │   ├── index.html
+│   │   ├── styles.css
+│   │   └── js/
+│   │       ├── app.js           视图切换与全局事件
+│   │       ├── reader.js        TXT 连贯滚动引擎 + PDF 渲染
+│   │       ├── library.js       书库
+│   │       ├── browser.js       浏览器工具栏与标签
+│   │       ├── settings.js      设置面板
+│   │       ├── state.js         共享状态与工具函数
+│   │       └── ui.js            toast / modal
+│   └── vendor/pdf/              pdf.js 运行资源（cmaps、标准字体）
+├── scripts/                     e2e 与自检脚本
+├── doc/                         产品文档（PRD、分析报告）
+└── build/                       打包图标等资源
+```
+
+**技术选型**：Electron 33 + 原生 ES Module，渲染层零框架依赖。理由是这个应用 90% 的复杂度在「窗口行为 + 大量文本的渲染性能」，框架帮不上忙，反而会拖慢首屏。依赖只有两个：`pdfjs-dist`（PDF 渲染）和 `chardet`（编码猜测）。
+
+### 自检脚本（e2e）
+
+```bash
+MOYU_E2E=1        npm run dev   # 书库 / 阅读 / PDF / 贴边 + 15MB 大文件专项
+MOYU_E2E_BROWSER=1 npm run dev  # 浏览器专项（导航 / 查找 / 标签 / 错误页 / 真站点）
+MOYU_E2E_LAYOUT=1  npm run dev  # 响应式布局专项（8 组长宽 × 4 视图，查横向溢出）
+MOYU_E2E_NET=1     npm run dev  # 网络专项（自签名证书站 + 真站点 + 信任证书开关）
+MOYU_E2E_FLOW=1    npm run dev  # TXT 连贯滚动专项（分块 / 追加 / 位置还原）
+MOYU_E2E_SHOTS=1   npm run dev  # 重新生成 README 配图到 assets/（用临时 user-data-dir 跑）
+```
+
+截图落在 `.shots/`。跑 e2e 建议加 `--user-data-dir` 指向临时目录，避免污染真实书库、也避免单实例锁让新实例静默退出。
+
+---
 
 ## 打包
 
 ```bash
-npm run build:win     # dist/ 下产出 NSIS 安装包 + 便携版 exe
-npm run build:dir     # 仅输出未打包目录（调试用）
+npm run build:win   # dist/ 下产出 NSIS 安装包 + 便携版 exe
+npm run build:dir   # 仅输出未打包目录（调试用）
 ```
 
-- 安装包：安装向导 + 桌面快捷方式 + 开始菜单 + 卸载入口（中文界面）
-- 便携版：单文件 exe，双击即用
-- ⚠️ **杀软误报提示**：未做代码签名的 Electron 程序可能被 Windows Defender / 360 等误报。
-  个人使用可加白名单；对外分发建议购买代码签名证书。
+---
 
-## 数据与隐私
+## 已知限制
 
-- 全部数据在 `%APPDATA%/desk-chill/`：
-  - `data/library.json` 书库、`data/progress.json` 进度与书签、`data/settings.json` 设置、`data/window.json` 窗口状态（均原子写入）
-  - `logs/YYYY-MM-DD.log` 本地埋点（按日轮转，保留 30 天，可在设置导出/打开目录）
-- 无账号、无云端、埋点不上传。
+- **PDF 大纲依赖文件自带书签**；扫描版 PDF 无文本层时不能搜索 / 复制
+- **贴边是「驻留式」的**：防人眼不防企业网络审计，本项目不对抗审计
+- **浏览器登录态只在同一次运行内保留**，退出应用即清会话
+- **仅 Windows**：贴边、老板键、任务栏行为都基于 Win32 窗口 API
+- 默认关闭 GPU 加速（`disable-gpu` + `disable-gpu-compositing` + `disable-gpu-sandbox`），规避部分显卡驱动下图形上下文创建失败的崩溃；阅读类 UI 无感知
+- 内置浏览器渲染进程使用 `sandbox: false` + `contextIsolation: true` + `nodeIntegration: false`：本机环境下开 `sandbox: true` 会启动即崩，远程网页依旧拿不到 Node 能力
+- 窗口最小尺寸 520×380
 
-## 快捷键
+---
 
-| 键 | 作用 |
-|----|------|
-| F8 | 老板键：隐藏 / 恢复（可改） |
-| Ctrl+1 / Ctrl+2 / Ctrl+, | 书库 / 浏览 / 设置 |
-| Ctrl+O | 导入文件 |
-| ←/→ / PgUp/PgDn / 空格 | 翻页 |
-| Ctrl+= / Ctrl+- | 字号 +/- |
-| Ctrl+F | 全文搜索（阅读）/ 页内查找（浏览） |
-| 浏览器内 Ctrl+T / Ctrl+W / Ctrl+L / Ctrl+R / Ctrl+=/-/0 | 新标签 / 关标签 / 聚焦地址栏 / 刷新 / 缩放（焦点在网页里也生效） |
-| Esc（浏览） | 关查找条，否则回阅读（焦点在网页里也生效） |
+## 文档
 
-## 已知边界（与 PRD 一致）
+全部产品文档在 [`doc/`](doc/) 目录：
 
-- PDF 大纲目录依赖文件自带书签；扫描版 PDF 无文本层时无法搜索/复制
-- 贴边收起为「驻留式」：防人眼不防企业网络审计（PRD 明确不做对抗审计）
-- 小红书等网页登录态在同一次运行内保留；退出应用即清会话
-- 本机已强制关闭 GPU 加速（`disable-gpu` + `disable-gpu-compositing` + `disable-gpu-sandbox`），
-  规避图形环境共享上下文崩溃问题；阅读/工具类 UI 无感知
-- 内置浏览器的渲染子进程**不能开 `sandbox: true`**：本机环境下会一启动就
-  `render-process-gone('crashed')`，表现为「浏览页面一片空白 / 页面崩溃」。
-  已改为 `sandbox: false` + `contextIsolation: true` + `nodeIntegration: false`，
-  远程网页依旧拿不到 Node 能力
-- 内置浏览器只渲染网页协议（http/https/file/about/data/blob）。抖音、微信等页面的
-  「打开 APP」按钮用的是 `bytedance://` / `snssdk1128://` / `weixin://` 这类客户端协议，
-  默认**在应用内拦截并提示**——否则会被 Windows 当成「未注册协议」，
-  弹出「获取打开此'bytedance'链接的应用 / 请在 Microsoft Store 中查找」。
-  装了对应客户端时，可点提示条上的「用系统打开」显式交给系统
-- 窗口最小尺寸 520×380（`minWidth/minHeight`），布局按此下限适配；更小的尺寸 Windows 不允许
-- **网页打不开的排查顺序**：① 设置 → 网络 → 点「检查代理与连通性」，先看**实际生效**是 `PROXY xxx` 还是
-  `DIRECT`（很多人以为在用代理，实际应用在直连）；② 代理软件只开本地端口时，选「手动指定」填
-  `http://127.0.0.1:7890`（按实际端口）；③ 公司网络做 HTTPS 中间人导致证书报错，可开启「信任证书错误」
-  （会降低安全性）；④ 「清空缓存」。错误页也提供「用系统浏览器打开」兜底
-- `ERR_CONNECTION_RESET` / `handshake failed ... net_error -101` = 连接在 TLS 阶段被中间设备重置，
-  基本都与「没走代理」或网络策略有关，不是页面代码问题；先看联网诊断里的「实际生效」一行
-- 证书错误**默认拒绝**（安全）。此前的实现只 `preventDefault()` 未调用 callback，会让 Electron 永久挂起
-  —— 表现为「一直转圈、错误页都不出」，已修复为显式回调
+| 文件                                | 内容                         |
+| --------------------------------- | -------------------------- |
+| [`doc/README.md`](doc/README.md)  | 功能细节、已知边界、FAQ（网页打不开的排查顺序等） |
+| `摸鱼一体工具 MVP PRD（产品方案 v0.1）.md`    | P0 四件套的需求定义与验收标准           |
+| `摸鱼一体工具（阅读器＋轻量浏览器＋贴边收起）产品分析报告.md` | 竞品与场景分析                    |
+| `桌面阅读器PRD.md`                     | 阅读器模块的早期设计稿                |
+
+---
+
+## License
+
+![License](https://img.shields.io/badge/license-MIT-green)
+
+本项目基于 [MIT License](LICENSE) 发布，Copyright (c) 2026 Finch-Hub。
+
+> 项目仅用于个人学习与自用。请遵守所在单位的工作制度与网络使用规定。

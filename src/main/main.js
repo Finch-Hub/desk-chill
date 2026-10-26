@@ -477,7 +477,8 @@ function createWindow() {
   // （Unknown VE context / Autofill.enable not found），容易被误认为应用故障。
   const runningE2E = process.env.MOYU_E2E || process.env.MOYU_E2E_BROWSER
     || process.env.MOYU_E2E_LAYOUT || process.env.MOYU_E2E_NET
-    || process.env.MOYU_E2E_FLOW || process.env.MOYU_E2E_REAL;
+    || process.env.MOYU_E2E_FLOW || process.env.MOYU_E2E_REAL
+    || process.env.MOYU_E2E_SHOTS;
   if (isDev && !runningE2E) win.webContents.openDevTools({ mode: 'detach' });
   if (isDev && process.env.MOYU_E2E) {
     try {
@@ -519,6 +520,13 @@ function createWindow() {
       require('../../scripts/e2e-flow.js')(win, fs);
     } catch (err) {
       console.error('[flow] 注入失败', err);
+    }
+  }
+  if (isDev && process.env.MOYU_E2E_SHOTS) {
+    try {
+      require('../../scripts/shots.js')(win, fs);
+    } catch (err) {
+      console.error('[shots] 注入失败', err);
     }
   }
 
