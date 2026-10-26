@@ -1,14 +1,15 @@
 'use strict';
 /**
  * 本地数据层：JSON 原子写入（先写临时文件再 rename），避免异常退出导致文件损坏。
- * 存储口径：%APPDATA%/moyu/（PRD「字段与数据模型」）
+ * 存储口径：%APPDATA%/desk-chill/（固定目录，不随 productName 变化，避免改名丢数据）。
  */
 const fs = require('node:fs');
 const path = require('node:path');
 const { app } = require('electron');
 
-const DATA_DIR = path.join(app.getPath('userData'), 'data');
-const LOG_DIR = path.join(app.getPath('userData'), 'logs');
+// 固定为英文目录，跨版本稳定，也避免中文路径编码问题
+const DATA_DIR = path.join(app.getPath('appData'), 'desk-chill', 'data');
+const LOG_DIR = path.join(app.getPath('appData'), 'desk-chill', 'logs');
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

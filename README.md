@@ -1,6 +1,6 @@
-# 摸鱼一体（MVP v0.1）
+# 鱼塘（desk-chill）MVP v0.1
 
-单窗口「本地阅读 + 内置浏览 + 贴边收起 + 老板键」的 Windows 摸鱼工具。
+单窗口「本地阅读 + 内置浏览 + 贴边收起 + 老板键」的 Windows 桌面工具（鱼塘 / desk-chill）。
 按《摸鱼一体工具 MVP PRD v0.1》P0 四件套实现，全部数据仅存本机。
 
 ## 功能（P0 四件套）
@@ -58,7 +58,7 @@ npm run build:dir     # 仅输出未打包目录（调试用）
 
 ## 数据与隐私
 
-- 全部数据在 `%APPDATA%/摸鱼一体/`：
+- 全部数据在 `%APPDATA%/desk-chill/`：
   - `data/library.json` 书库、`data/progress.json` 进度与书签、`data/settings.json` 设置、`data/window.json` 窗口状态（均原子写入）
   - `logs/YYYY-MM-DD.log` 本地埋点（按日轮转，保留 30 天，可在设置导出/打开目录）
 - 无账号、无云端、埋点不上传。

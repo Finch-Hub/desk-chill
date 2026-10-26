@@ -408,7 +408,7 @@ function createWindow() {
     frame: false,
     show: false,
     backgroundColor: '#f6f7f9',
-    title: '摸鱼一体',
+    title: '鱼塘',
     icon: appIcon(256),
     autoHideMenuBar: true,
     webPreferences: {
@@ -622,7 +622,7 @@ function rebuildTrayMenu() {
     { label: '退出（需确认）', click: () => requestQuit() },
   ]);
   tray.setContextMenu(menu);
-  tray.setToolTip(trayHidden ? '摸鱼一体（已隐藏，F8 恢复）' : '摸鱼一体');
+  tray.setToolTip(trayHidden ? '鱼塘（已隐藏，F8 恢复）' : '鱼塘');
 }
 
 function createTray() {
@@ -694,7 +694,7 @@ async function requestQuit() {
   if (dock) dock.suspendAutoHide(120000);
   const { response } = await dialog.showMessageBox(win, {
     type: 'question',
-    title: '退出摸鱼一体',
+    title: '退出鱼塘',
     message: '确定退出吗？阅读进度会先保存。',
     buttons: ['退出', '取消'],
     defaultId: 1,
@@ -1464,7 +1464,7 @@ if (!gotLock) {
     registerAppProtocol();
     loadAll();
     try {
-      app.setAppUserModelId('com.moyu.reader');
+      app.setAppUserModelId('com.finchhub.deskchill');
     } catch { /* 忽略 */ }
     ensureHomeFile();
     createWindow();

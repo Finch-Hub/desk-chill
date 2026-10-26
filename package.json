@@ -1,8 +1,8 @@
 {
-  "name": "moyu-reader",
-  "productName": "摸鱼一体",
+  "name": "desk-chill",
+  "productName": "鱼塘",
   "version": "0.1.0",
-  "description": "摸鱼一体工具 P0：本地 TXT/PDF 阅读 + 贴边收起 + 内置浏览器 + 老板键",
+  "description": "鱼塘（desk-chill）：本地 TXT/PDF 阅读 + 贴边收起 + 内置浏览器 + 老板键",
   "main": "src/main/main.js",
   "author": "moyu",
   "license": "MIT",
@@ -18,8 +18,8 @@
     "build:dir": "electron-builder --dir"
   },
   "build": {
-    "appId": "com.moyu.reader",
-    "productName": "摸鱼一体",
+    "appId": "com.finchhub.deskchill",
+    "productName": "鱼塘",
     "directories": {
       "output": "dist",
       "buildResources": "build"
@@ -43,7 +43,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": "always",
       "createStartMenuShortcut": true,
-      "shortcutName": "摸鱼一体",
+      "shortcutName": "鱼塘",
       "deleteAppDataOnUninstall": false,
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico",
