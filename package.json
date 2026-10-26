@@ -1,0 +1,66 @@
+{
+  "name": "moyu-reader",
+  "productName": "摸鱼一体",
+  "version": "0.1.0",
+  "description": "摸鱼一体工具 P0：本地 TXT/PDF 阅读 + 贴边收起 + 内置浏览器 + 老板键",
+  "main": "src/main/main.js",
+  "author": "moyu",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "check": "node --experimental-vm-modules scripts/check-syntax.js",
+    "test:dock": "node scripts/test-dock.js",
+    "test:url": "node scripts/test-urlguard.js",
+    "typecheck": "tsc --noEmit -p . && node --experimental-vm-modules scripts/check-syntax.js && node scripts/test-dock.js && node scripts/test-urlguard.js",
+    "build:win": "node --experimental-vm-modules scripts/check-syntax.js && electron-builder --win nsis portable",
+    "build:dir": "electron-builder --dir"
+  },
+  "build": {
+    "appId": "com.moyu.reader",
+    "productName": "摸鱼一体",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "摸鱼一体",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerLanguages": ["zh_CN"],
+      "language": "2052"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "chardet": "^2.1.1",
+    "pdfjs-dist": "4.10.38"
+  }
+}

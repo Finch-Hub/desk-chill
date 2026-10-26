@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>摸鱼一体</title>
+<link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+<div id="app" class="app">
+  <!-- 顶栏：视图切换 + 窗口控制（frame:false 需要自绘标题栏） -->
+  <header class="topbar" id="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-name">摸鱼一体</span>
+    </div>
+    <nav class="nav" id="nav">
+      <button class="nav-btn" data-view="library" title="Ctrl+1">书库</button>
+      <button class="nav-btn" data-view="reader" title="当前书籍">阅读</button>
+      <button class="nav-btn" data-view="browser" title="Ctrl+2">浏览</button>
+      <button class="nav-btn" data-view="settings" title="Ctrl+,">设置</button>
+    </nav>
+    <div class="topbar-right">
+      <button class="icon-btn" id="btn-dock" title="收成边条（贴边）">
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2 3h12M2 8h12M2 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-boss" title="老板键：隐藏到托盘（F8）">
+        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2 6.5 8 2l6 4.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      </button>
+      <span class="win-sep"></span>
+      <button class="icon-btn win-btn" id="btn-min" title="最小化">
+        <svg viewBox="0 0 16 16" width="14" height="14"><path d="M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+      <button class="icon-btn win-btn" id="btn-max" title="最大化">
+        <svg viewBox="0 0 16 16" width="13" height="13"><rect x="3.2" y="3.2" width="9.6" height="9.6" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="icon-btn win-btn close" id="btn-close" title="隐藏到托盘">
+        <svg viewBox="0 0 16 16" width="14" height="14"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="content" id="content">
+    <!-- 书库 -->
+    <section class="view" id="view-library">
+      <div class="view-head">
+        <div>
+          <h1>我的书库</h1>
+          <p class="sub" id="library-sub">支持 TXT / PDF，拖入窗口即可导入</p>
+        </div>
+        <div class="view-actions">
+          <div class="seg" id="sort-seg">
+            <button class="seg-btn active" data-sort="recent">最近阅读</button>
+            <button class="seg-btn" data-sort="added">导入时间</button>
+            <button class="seg-btn" data-sort="title">书名</button>
+          </div>
+          <button class="btn primary" id="btn-import">
+            <svg viewBox="0 0 16 16" width="14" height="14"><path d="M8 2v8m0 0 3-3m-3 3L5 7M3 13h10" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            导入文件
+          </button>
+        </div>
+      </div>
+
+      <div class="shelf" id="shelf"></div>
+
+      <div class="empty" id="library-empty" hidden>
+        <div class="empty-art">
+          <svg viewBox="0 0 120 90" width="120" height="90">
+            <rect x="12" y="14" width="44" height="62" rx="5" fill="none" stroke="currentColor" stroke-width="2.2"/>
+            <rect x="62" y="24" width="34" height="52" rx="5" fill="none" stroke="currentColor" stroke-width="2.2" opacity="0.55"/>
+            <path d="M22 30h24M22 40h24M22 50h16" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" opacity="0.6"/>
+          </svg>
+        </div>
+        <h2>书库还是空的</h2>
+        <p>点「导入文件」选择本地 TXT / PDF，或把文件直接拖进这个窗口。</p>
+        <button class="btn" id="btn-import-empty">导入文件</button>
+      </div>
+    </section>
+
+    <!-- 阅读 -->
+    <section class="view" id="view-reader" hidden>
+      <!-- 贴边条：窗口收起后露出的那一条（由 DockEngine 驱动显隐） -->
+      <div class="dock-strip" id="dock-strip" hidden>
+        <span class="dock-glyph" id="dock-glyph">›</span>
+      </div>
+      <div class="reader-toolbar">
+        <button class="icon-btn" id="btn-reader-back" title="返回书库">
+          <svg viewBox="0 0 16 16" width="15" height="15"><path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="reader-title" id="reader-title">未打开书籍</span>
+        <span class="reader-meta" id="reader-meta"></span>
+        <div class="spacer"></div>
+        <button class="icon-btn" id="btn-toc" title="目录 / 书签">目录</button>
+        <button class="icon-btn" id="btn-find" title="全文搜索 (Ctrl+F)">搜索</button>
+        <div class="pop-wrap">
+          <button class="icon-btn" id="btn-reader-settings" title="阅读设置">Aa</button>
+          <div class="pop" id="reader-settings-pop" hidden>
+            <label class="field">
+              <span>字号 <b id="fs-val">17</b>px</span>
+              <input type="range" id="fs-range" min="14" max="28" step="1" />
+            </label>
+            <label class="field">
+              <span>行距</span>
+              <select id="lh-select">
+                <option value="1.5">紧凑 1.5</option>
+                <option value="1.8">标准 1.8</option>
+                <option value="2.2">宽松 2.2</option>
+              </select>
+            </label>
+            <div class="field">
+              <span>背景</span>
+              <div class="swatches" id="bg-swatches">
+                <button class="sw" data-bg="white" title="白"><i style="background:#fbfbf9"></i></button>
+                <button class="sw" data-bg="sepia" title="米"><i style="background:#f3e9d6"></i></button>
+                <button class="sw" data-bg="green" title="护眼"><i style="background:#e3f0e3"></i></button>
+                <button class="sw" data-bg="dark" title="暗"><i style="background:#1d2025"></i></button>
+              </div>
+            </div>
+            <div class="field">
+              <span>字体</span>
+              <select id="font-select"><option value="">系统默认</option></select>
+            </div>
+            <label class="field">
+              <span>翻页方式</span>
+              <select id="wheel-select">
+                <option value="scroll">连贯滚动（网页式）</option>
+                <option value="screen">整屏翻动</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>自动滚动</span>
+              <input type="checkbox" id="auto-scroll" />
+            </label>
+          </div>
+        </div>
+        <button class="icon-btn" id="btn-bookmark" title="添加 / 删除书签">书签</button>
+      </div>
+
+      <div class="reader-body" id="reader-body">
+        <!-- 窄窗口下侧栏是抽屉，点这里关闭 -->
+        <div class="reader-scrim" id="reader-scrim" hidden></div>
+        <aside class="reader-side" id="reader-side">
+          <div class="side-tabs">
+            <button class="side-tab active" data-tab="toc">目录</button>
+            <button class="side-tab" data-tab="marks">书签</button>
+            <button class="side-tab" data-tab="find">搜索</button>
+          </div>
+          <div class="side-pane" id="pane-toc"></div>
+          <div class="side-pane" id="pane-marks" hidden></div>
+          <div class="side-pane" id="pane-find" hidden>
+            <div class="find-box">
+              <input id="find-input" placeholder="输入关键词，回车搜索" />
+              <button class="btn small" id="find-next">下一个</button>
+            </div>
+            <div class="find-results" id="find-results"></div>
+          </div>
+        </aside>
+
+        <div class="reader-stage" id="reader-stage">
+          <div class="txt-pages" id="txt-pages" hidden>
+            <div class="txt-flow" id="txt-flow"></div>
+          </div>
+          <div class="pdf-pages" id="pdf-pages" hidden></div>
+          <div class="reader-placeholder" id="reader-placeholder">
+            <h2>还没有打开的书</h2>
+            <p>从书库选择一本，或直接按 Ctrl+O 导入。</p>
+            <button class="btn" id="btn-goto-library">去书库</button>
+          </div>
+          <div class="loading-mask" id="reader-loading" hidden><div class="spinner"></div><span id="reader-loading-tip">正在解析…</span></div>
+        </div>
+      </div>
+
+      <footer class="reader-footer">
+        <button class="icon-btn" id="btn-prev" title="上一页 (←)">‹</button>
+        <div class="progress-wrap">
+          <input type="range" id="page-range" min="0" max="0" value="0" />
+        </div>
+        <button class="icon-btn" id="btn-next" title="下一页 (→)">›</button>
+        <span class="page-info" id="page-info">— / —</span>
+        <span class="pct-info" id="pct-info">0%</span>
+        <button class="icon-btn" id="btn-jump" title="跳转页码">跳转</button>
+      </footer>
+    </section>
+
+    <!-- 浏览 -->
+    <section class="view" id="view-browser" hidden>
+      <div class="browser-bar">
+        <div class="nav-group">
+          <button class="icon-btn b-icon" id="b-back" title="后退 (Alt+←)">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M12.5 4 6 10l6.5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="icon-btn b-icon" id="b-forward" title="前进 (Alt+→)">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M7.5 4 14 10l-6.5 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="icon-btn b-icon" id="b-reload" title="刷新 (Ctrl+R)">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 4v4h-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <form class="addr-wrap" id="addr-form">
+          <input id="addr" spellcheck="false" placeholder="输入网址或关键词，回车打开" />
+          <div class="load-bar" id="load-bar"></div>
+        </form>
+        <div class="nav-group">
+          <button class="icon-btn b-icon" id="b-quick" title="常用站点 / 新标签页">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><path d="M10 3.2l2.1 4.3 4.7.7-3.4 3.3.8 4.7L10 13.9l-4.2 2.3.8-4.7L3.2 8.2l4.7-.7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="icon-btn b-icon" id="b-copy" title="复制当前网址">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><rect x="7" y="7" width="9" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M13 5.5V5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          </button>
+          <button class="icon-btn b-icon" id="b-find" title="页内查找 (Ctrl+F)">
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="9" cy="9" r="5.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l3.4 3.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+      <!-- 拦截提示：网页里的客户端协议（bytedance:// 等）被拦下时提示。
+           必须放在 stage 之外，否则会被 WebContentsView 盖住。 -->
+      <div class="browser-notice" id="browser-notice" hidden>
+        <span id="notice-text"></span>
+        <button class="btn small" id="notice-open">用系统打开</button>
+        <button class="btn small" id="notice-close">知道了</button>
+      </div>
+      <!-- WebContentsView 由主进程叠加在 #browser-stage 之上。
+           注意：原生视图永远盖在渲染层上方，所以「标签栏 / 查找条 / 错误页」
+           绝不能放在 stage 矩形内，否则网页一加载就被盖住、点不到也看不见。 -->
+      <div class="browser-tabs" id="browser-tabs"></div>
+      <div class="browser-find" id="browser-find" hidden>
+        <input id="bfind-input" placeholder="在页面中查找" />
+        <button class="btn small" id="bfind-next">下一个</button>
+        <button class="btn small" id="bfind-close">关闭</button>
+      </div>
+      <div class="browser-stage" id="browser-stage">
+        <div class="browser-home" id="browser-home">
+          <div class="home-inner">
+            <div class="home-brand">摸鱼一体 · 浏览</div>
+            <form class="home-search" id="home-form">
+              <input id="home-input" placeholder="搜索或输入网址" spellcheck="false" />
+            </form>
+            <div class="quick-sites" id="quick-sites"></div>
+            <p class="home-tip">Ctrl+T 新标签 · Ctrl+W 关闭标签 · Esc 回阅读 · 登录态在同一次运行内保留</p>
+          </div>
+        </div>
+        <div class="browser-err" id="browser-err" hidden>
+          <h2 id="err-title">无法访问此页面</h2>
+          <p id="err-desc"></p>
+          <div class="err-actions">
+            <button class="btn primary" id="err-retry">重试</button>
+            <button class="btn" id="err-clear">清缓存重试</button>
+            <button class="btn" id="err-external">用系统浏览器打开</button>
+            <button class="btn" id="err-back">返回首页</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 设置 -->
+    <section class="view" id="view-settings" hidden>
+      <div class="view-head">
+        <div>
+          <h1>设置</h1>
+          <p class="sub">全部设置即时保存到本地，重启后生效</p>
+        </div>
+        <button class="btn" id="btn-reset">恢复默认设置</button>
+      </div>
+      <div class="settings-grid">
+        <div class="card">
+          <h3>阅读</h3>
+          <label class="field"><span>默认字号</span><input type="number" id="s-fontSize" min="14" max="28" /></label>
+          <label class="field"><span>默认行距</span>
+            <select id="s-lineHeight"><option value="1.5">1.5</option><option value="1.8">1.8</option><option value="2.2">2.2</option></select>
+          </label>
+          <label class="field"><span>默认背景</span>
+            <select id="s-bgPreset"><option value="white">白</option><option value="sepia">米</option><option value="green">护眼</option><option value="dark">暗</option></select>
+          </label>
+          <label class="field"><span>导入默认目录</span>
+            <span class="path-row"><input id="s-importDir" readonly placeholder="未设置" /><button class="btn small" id="s-pickdir">选择</button></span>
+          </label>
+        </div>
+
+        <div class="card">
+          <h3>贴边收起</h3>
+          <label class="field"><span>启用边缘收纳</span><input type="checkbox" id="s-edgeDockEnabled" /></label>
+          <div class="field"><span>贴边方向</span>
+            <div class="seg" id="s-edge-seg">
+              <button class="seg-btn" data-edge="left">左</button>
+              <button class="seg-btn" data-edge="right">右</button>
+              <button class="seg-btn" data-edge="top">上</button>
+            </div>
+          </div>
+          <label class="field"><span>露出宽度 <b id="s-peek-val">4</b>px</span><input type="range" id="s-dockPeek" min="2" max="8" step="1" /></label>
+          <label class="field"><span>展开动画 <b id="s-anim-val">300</b>ms</span><input type="range" id="s-dockAnim" min="0" max="500" step="20" /></label>
+          <label class="field"><span>移出即收起</span><input type="checkbox" id="s-autoDockOnLeave" /></label>
+          <p class="hint">
+            把窗口拖到屏幕边缘松开即收成边条；鼠标移到边条上会自动展开，<b>鼠标移开窗口就自动收回边条</b>（不用再点按钮）。<br />
+            展开后想一直留着用：把窗口从边缘拖开、或最大化窗口即可取消自动收起。<br />
+            上面这个开关额外覆盖「窗口只是贴着边缘、但没从边条展开」的情形。当前方向在这里改只影响「手动收起」。
+          </p>
+        </div>
+
+        <div class="card">
+          <h3>老板键</h3>
+          <label class="field"><span>启用全局隐藏</span><input type="checkbox" id="s-bossEnabled" /></label>
+          <label class="field"><span>快捷键</span>
+            <span class="path-row"><input id="s-bossKey" readonly /><button class="btn small" id="s-capture">改写</button></span>
+          </label>
+          <p class="hint" id="boss-hint">按下老板键，窗口与任务栏入口立即消失，再按一次恢复到隐藏前状态。</p>
+          <label class="field"><span>开机自启</span><input type="checkbox" id="s-launchAtStartup" /></label>
+        </div>
+
+        <div class="card">
+          <h3>浏览器</h3>
+          <label class="field"><span>常用站点</span></label>
+          <div id="quick-editor" class="quick-editor"></div>
+          <p class="hint">每行一个：名称|网址</p>
+        </div>
+
+        <div class="card">
+          <h3>网络（内置浏览器）</h3>
+          <div class="field"><span>代理模式</span>
+            <select id="s-proxyMode">
+              <option value="system">跟随系统代理</option>
+              <option value="direct">直连（不走代理）</option>
+              <option value="manual">手动指定</option>
+            </select>
+          </div>
+          <label class="field"><span>代理地址</span>
+            <input type="text" id="s-proxyRules" placeholder="http://127.0.0.1:7890" />
+          </label>
+          <label class="field"><span>信任证书错误</span><input type="checkbox" id="s-ignoreCertErrors" /></label>
+          <div class="field"><span>联网诊断</span>
+            <button class="btn small" id="s-netCheck">检查代理与连通性</button>
+          </div>
+          <div class="field"><span>清理浏览缓存</span>
+            <button class="btn small" id="s-clearCache">清空缓存</button>
+          </div>
+          <p class="hint">
+            网页打不开时按顺序试：①「直连」；② 代理软件只开了本地端口的话，选「手动指定」填
+            <code>http://127.0.0.1:7890</code>（按你实际端口）；③ 清空缓存。改完会自动重载当前页。<br />
+            「信任证书错误」用于公司代理做 HTTPS 中间人的场景，开启后不再校验证书，
+            <b>会降低安全性</b>，只在明确知道原因时打开。
+          </p>
+        </div>
+
+        <div class="card wide">
+          <h3>数据与日志</h3>
+          <div class="kv"><span>数据目录</span><code id="data-dir">—</code><button class="btn small" id="btn-open-data">打开</button></div>
+          <div class="kv"><span>日志目录</span><code id="log-dir">—</code><button class="btn small" id="btn-open-log">打开</button></div>
+          <p class="hint">所有数据与埋点仅保存在本机，不上传网络。日志按日轮转、保留 30 天。</p>
+          <div class="kv"><span>版本</span><code id="app-version">—</code><button class="btn small danger" id="btn-quit">退出应用</button></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 拖拽导入遮罩 -->
+  <div class="drop-mask" id="drop-mask" hidden>
+    <div class="drop-box">松开即可导入 TXT / PDF</div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toasts" id="toasts"></div>
+
+  <!-- 模态 -->
+  <div class="modal-mask" id="modal-mask" hidden>
+    <div class="modal" id="modal">
+      <h3 id="modal-title">提示</h3>
+      <div class="modal-body" id="modal-body"></div>
+      <div class="modal-actions" id="modal-actions"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

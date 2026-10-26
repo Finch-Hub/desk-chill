@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+release/
+
+# Local data & artifacts
+.junk/
+.shots/
+.workbuddy/
+testdata/
+
+# Audit / e2e artifacts
+.audit.json
+.audit-done
+.e2e-*.json
+.e2e-*-done
+
+# OS / editor
+.DS_Store
+Thumbs.db
