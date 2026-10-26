@@ -26,6 +26,7 @@ export function initSettings() {
   bind('#s-bgPreset', 'bgPreset');
   bind('#s-edgeDockEnabled', 'edgeDockEnabled', 'checked');
   bind('#s-autoDockOnLeave', 'autoDockOnLeave', 'checked');
+  bind('#s-alwaysOnTop', 'alwaysOnTop', 'checked');
   bind('#s-bossEnabled', 'bossEnabled', 'checked');
   bind('#s-launchAtStartup', 'launchAtStartup', 'checked');
   bind('#s-proxyMode', 'proxyMode');
@@ -184,6 +185,8 @@ export function syncForm(s) {
   $('#s-importDir').value = s.importDir || '';
   $('#s-edgeDockEnabled').checked = !!s.edgeDockEnabled;
   $('#s-autoDockOnLeave').checked = !!s.autoDockOnLeave;
+  const onTop = $('#s-alwaysOnTop');
+  if (onTop) onTop.checked = !!s.alwaysOnTop;
   $('#s-dockPeek').value = String(s.dockPeek);
   $('#s-peek-val').textContent = String(s.dockPeek);
   $('#s-dockAnim').value = String(s.dockAnim);

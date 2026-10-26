@@ -197,8 +197,142 @@ export function applyReadingStyle() {
   document.querySelectorAll('#bg-swatches .sw').forEach((b) => {
     b.classList.toggle('active', b.dataset.bg === state.bgPreset);
   });
+  // 侧栏宽度也以设置为准：重置设置后能回到自适应宽度
+  applySideWidth(state.settings ? state.settings.sideWidth : 0);
   // 字号/行距/字体变化会改变块高度：重排可视窗口并把滚动位置校回同一偏移
   relayoutFlow();
+}
+
+/* ------------------------------------------------------------------ *
+ * 侧栏（目录/书签/搜索）宽度：拖右边缘调整，双击恢复默认
+ *   宽度存 settings.sideWidth：0 = 跟随 CSS 的 clamp(196px, 21vw, 248px)
+ * ------------------------------------------------------------------ */
+
+const SIDE_MIN = 168; // 再窄目录条目就只剩省略号了
+const SIDE_MAX = 560;
+const SIDE_DEFAULT = 0;
+
+/** 上限同时受窗口宽度约束：侧栏最多占阅读区 55%，给正文留够行宽 */
+function sideWidthCeil() {
+  const body = $('#reader-body');
+  const w = body ? body.clientWidth : window.innerWidth;
+  return Math.max(SIDE_MIN + 40, Math.min(SIDE_MAX, Math.round(w * 0.55)));
+}
+
+/** 应用侧栏宽度（0 = 恢复自适应默认） */
+export function applySideWidth(px) {
+  const v = Number(px) || 0;
+  const root = document.documentElement;
+  if (v <= 0) {
+    root.style.removeProperty('--side-w');
+    return;
+  }
+  const w = Math.round(Math.min(Math.max(v, SIDE_MIN), sideWidthCeil()));
+  root.style.setProperty('--side-w', `${w}px`);
+}
+
+/** 拖动结束后落盘一次即可，别让 mousemove 每次都走 IPC */
+const saveSideWidth = debounce((px) => {
+  if (state.settings) state.settings.sideWidth = px;
+  window.moyu.settings.update({ sideWidth: px }).catch(() => {});
+}, 400);
+
+function initSideResizer() {
+  const grip = $('#side-resizer');
+  const side = $('#reader-side');
+  if (!grip || !side) return;
+
+  let dragging = false;
+  let startX = 0;
+  let startW = 0;
+  let curW = 0;
+  let dragOffset = 0;
+
+  const onMove = (e) => {
+    if (!dragging) return;
+    const w = Math.min(Math.max(startW + (e.clientX - startX), SIDE_MIN), sideWidthCeil());
+    curW = Math.round(w);
+    document.documentElement.style.setProperty('--side-w', `${curW}px`);
+  };
+
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    grip.classList.remove('dragging');
+    document.body.classList.remove('side-resizing');
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    if (curW) saveSideWidth(curW);
+    // 校正回「按下手柄那一刻」的字符偏移：拖动中 ResizeObserver 重算的偏移已漂了
+    if (dragOffset > 0) scrollToOffset(dragOffset, 'auto');
+    else relayoutFlow();
+    relayoutPdf();
+  };
+
+  grip.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    dragging = true;
+    startX = e.clientX;
+    startW = side.getBoundingClientRect().width;
+    curW = Math.round(startW);
+    dragOffset = keepOffsetThroughLayout();
+    grip.classList.add('dragging');
+    document.body.classList.add('side-resizing');
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+
+  // 双击恢复自适应宽度
+  grip.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    keepOffsetThroughLayout(); // 同上：宽度变化前钉住阅读位置
+    applySideWidth(SIDE_DEFAULT);
+    saveSideWidth(SIDE_DEFAULT);
+    relayoutPdf();
+  });
+
+  // 窗口变窄后原宽度可能超上限：按新上限重新夹一次
+  window.addEventListener('resize', debounce(() => {
+    const saved = state.settings ? Number(state.settings.sideWidth) || 0 : 0;
+    if (saved > 0) applySideWidth(saved);
+  }, 150));
+}
+
+/**
+ * 点侧栏以外的地方收起侧栏。
+ * 不收的三种情况：点在自己身上、点在滚动条上、刚才是划词选中。
+ * 另外延迟 180ms 才真收——双击选词的第一次 click 会先到，
+ * 紧接着的 dblclick 把它撤销，否则「选个词」就把目录收了。
+ */
+function initSideAutoCollapse() {
+  const stage = $('#reader-stage');
+  if (!stage) return;
+  let pending = null;
+  stage.addEventListener('click', (e) => {
+    if (!state.sideOpen) return;
+    const t = e.target;
+    if (t && t.closest && t.closest('#reader-side')) return;
+    // 点在滚动条轨道上（正文区右缘）不该算「点空白」
+    if (t && t.nodeType === 1 && t.scrollHeight > t.clientHeight + 1 && e.offsetX >= t.clientWidth) return;
+    const sel = window.getSelection();
+    if (sel && !sel.isCollapsed && String(sel).length > 0) return;
+    clearTimeout(pending);
+    pending = setTimeout(() => {
+      pending = null;
+      if (!state.sideOpen) return; // 这 180ms 内可能已被手动关掉
+      keepOffsetThroughLayout(); // 收起后正文变宽，位置不能漂
+      emit('side:close');
+    }, 180);
+  });
+  stage.addEventListener('dblclick', () => {
+    if (pending) {
+      clearTimeout(pending);
+      pending = null;
+    }
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -547,6 +681,20 @@ export const relayoutFlow = debounce(() => {
   if (!flow || !state.book || state.book.format !== 'txt' || !state.txtText) return;
   scrollToOffset(currentOffsetRaw(), 'auto');
 }, 120);
+
+/**
+ * 布局即将变化（侧栏开合 / 拖宽 / 收起）时先记下字符偏移，
+ * 等两帧后布局落定再校回。直接靠 ResizeObserver 里重算的偏移会有
+ * 一两行的漂移（重排后 scrollTop 没动，顶部那一行已经变了）。
+ */
+function keepOffsetThroughLayout() {
+  if (!flow || !state.book || state.book.format !== 'txt' || !flowHasSize()) return 0;
+  const off = currentOffsetRaw();
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (flow && state.book && state.book.format === 'txt') scrollToOffset(off, 'auto');
+  }));
+  return off;
+}
 
 /** 滚动同步：补块 / 回收 / 页脚 / 目录 / 进度 */
 const onFlowScroll = throttle(function sync() {
@@ -1100,6 +1248,10 @@ function openBrowserFind() {
  * ------------------------------------------------------------------ */
 export function initReader() {
   observeStageResize();
+  initSideResizer();
+  initSideAutoCollapse();
+  // 恢复上次拖好的侧栏宽度（0 / 未设置时不加内联值，保持 CSS 自适应）
+  window.moyu.settings.get().then((s) => applySideWidth(s && s.sideWidth)).catch(() => {});
   $('#btn-reader-back').onclick = () => emit('view:goto', 'library');
   $('#btn-prev').onclick = () => prevPage();
   $('#btn-next').onclick = () => nextPage();
@@ -1162,6 +1314,7 @@ export function initReader() {
 
   // 侧栏：目录 / 书签 / 搜索
   $('#btn-toc').onclick = () => {
+    keepOffsetThroughLayout(); // 正文宽度变了，先把阅读位置钉住
     state.sideOpen = !state.sideOpen;
     $('#reader-side').classList.toggle('collapsed', !state.sideOpen);
     $('#btn-toc').classList.toggle('on', state.sideOpen);

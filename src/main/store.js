@@ -7,9 +7,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { app } = require('electron');
 
-// 固定为英文目录，跨版本稳定，也避免中文路径编码问题
-const DATA_DIR = path.join(app.getPath('appData'), 'desk-chill', 'data');
-const LOG_DIR = path.join(app.getPath('appData'), 'desk-chill', 'logs');
+// 固定为英文目录，跨版本稳定，也避免中文路径编码问题。
+// MOYU_DATA_DIR 只给 e2e / 截图脚本用：指向临时目录，测试就不必碰真实书库、
+// 进度和设置（--user-data-dir 对这里无效，因为数据目录是显式算出来的）。
+const BASE_DIR = process.env.MOYU_DATA_DIR || path.join(app.getPath('appData'), 'desk-chill');
+const DATA_DIR = path.join(BASE_DIR, 'data');
+const LOG_DIR = path.join(BASE_DIR, 'logs');
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

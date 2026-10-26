@@ -8,6 +8,8 @@
 
 ![Electron](https://img.shields.io/badge/Electron-33-47848F?logo=electron\&logoColor=white)
 
+
+
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011-0078D4?logo=windows\&logoColor=white)
 
 ![Version](https://img.shields.io/badge/version-0.1.0-blue)
@@ -72,6 +74,14 @@
 - **鼠标移到边条自动展开，移开自动收回**；展开位置吸附在边缘，不会跳回屏幕中央
 - 展开后拖动窗口或最大化即取消自动收起；也可「固定展开」保持常开
 - 方向、动画时长可调，重启恢复上次贴边状态
+
+### 窗口置顶（钉在最上层）
+
+- 顶栏**图钉按钮**一键置顶，窗口浮在其他程序之上，切到别的窗口也不被盖住
+- **与贴边收起互斥**：置顶时拖到边缘不吸附、「收成边条」按钮会解释原因；一旦收成边条则自动取消置顶 —— 不会出现「既贴在屏幕外、又浮在最上层」
+- 三个入口同一个开关：顶栏图钉 / 托盘菜单「窗口置顶」/ 设置页复选框，状态实时同步并记住到下次启动
+- 贴边动画期间会临时提高窗口层级，动画结束按你的置顶意愿回落，反复贴边不会把置顶弄丢
+- 置顶层级用 `floating`（等价 Windows `HWND_TOPMOST`），不会盖住 UAC 弹窗与任务栏
 
 ### 内置浏览器
 
@@ -200,10 +210,11 @@ desk-chill/
 │   │       ├── settings.js      设置面板
 │   │       ├── state.js         共享状态与工具函数
 │   │       └── ui.js            toast / modal
+│   ├── assets/                  图标（icon.png / icon.ico / tray.png，脚本生成）
 │   └── vendor/pdf/              pdf.js 运行资源（cmaps、标准字体）
 ├── scripts/                     e2e 与自检脚本
 ├── doc/                         产品文档（PRD、分析报告）
-└── build/                       打包图标等资源
+└── assets/                      README 配图
 ```
 
 **技术选型**：Electron 33 + 原生 ES Module，渲染层零框架依赖。理由是这个应用 90% 的复杂度在「窗口行为 + 大量文本的渲染性能」，框架帮不上忙，反而会拖慢首屏。依赖只有两个：`pdfjs-dist`（PDF 渲染）和 `chardet`（编码猜测）。
@@ -217,6 +228,15 @@ MOYU_E2E_LAYOUT=1  npm run dev  # 响应式布局专项（8 组长宽 × 4 视�
 MOYU_E2E_NET=1     npm run dev  # 网络专项（自签名证书站 + 真站点 + 信任证书开关）
 MOYU_E2E_FLOW=1    npm run dev  # TXT 连贯滚动专项（分块 / 追加 / 位置还原）
 MOYU_E2E_SHOTS=1   npm run dev  # 重新生成 README 配图到 assets/（用临时 user-data-dir 跑）
+MOYU_E2E_ICON=1    npm run dev  # 图标自检（顶栏 logo / 任务栏按钮 / 托盘位置，截图落 .shots/）
+MOYU_E2E_SIDE=1    npm run dev  # 目录侧栏专项（宽度拖拽 / 越界钳制 / 点正文收起 / 窄窗抽屉）
+MOYU_E2E_PIN=1     npm run dev  # 窗口置顶专项（图钉 / 落盘 / 设置页同步 / 贴边两轮后仍置顶）
+```
+
+图标由 `scripts/make-icon.js` 从一张正方形插画自动抠底、裁主体、生成多尺寸 png/ico：
+
+```bash
+node_modules\electron\dist\electron.exe scripts\make-icon.js <源图>
 ```
 
 截图落在 `.shots/`。跑 e2e 建议加 `--user-data-dir` 指向临时目录，避免污染真实书库、也避免单实例锁让新实例静默退出。

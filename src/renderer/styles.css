@@ -82,10 +82,10 @@ input, select, textarea { font: inherit; color: inherit; }
 .topbar .topbar-right { -webkit-app-region: no-drag; }
 
 .brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.brand-dot {
-  width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto;
-  background: var(--brand);
-  box-shadow: 0 0 0 3px var(--brand-soft);
+.brand-logo {
+  width: 20px; height: 20px; flex: 0 0 auto; border-radius: 6px;
+  display: block; object-fit: contain; user-select: none;
+  filter: drop-shadow(0 1px 1px rgba(17, 24, 39, 0.14));
 }
 .brand-name { font-weight: 600; letter-spacing: 0.3px; white-space: nowrap; }
 
@@ -115,6 +115,9 @@ input, select, textarea { font: inherit; color: inherit; }
 .icon-btn.win-btn { min-width: 34px; }
 .icon-btn.close:hover { background: #fdecea; color: var(--danger); }
 .icon-btn.on { background: var(--brand-soft); color: var(--brand); }
+/* 置顶时「贴边」按钮不可用：只是视觉降权，点下去会给文字解释 */
+.icon-btn.blocked { opacity: 0.35; }
+.icon-btn.blocked:hover { background: transparent; color: var(--text-2); }
 
 /* ------------------------------ 通用件 ------------------------------ */
 
@@ -257,10 +260,30 @@ input, select, textarea { font: inherit; color: inherit; }
 
 .reader-body { position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
 .reader-side {
+  position: relative; /* 供宽度拖拽手柄绝对定位 */
   flex: 0 0 var(--side-w); border-right: 1px solid var(--line); background: var(--panel);
   display: flex; flex-direction: column; min-height: 0;
+  /* flex item 默认 min-width:auto 会被目录条目的 min-content 撑开，
+     结果 --side-w 形同虚设（实测 231px 变 370px）。必须显式归零，
+     宽度才真正由 flex-basis 决定，条目超宽走 ellipsis。 */
+  min-width: 0;
 }
 .reader-side.collapsed { display: none; }
+
+/* 目录宽度拖拽手柄：贴在侧栏右边缘，7px 命中区（不占布局） */
+.side-resizer {
+  position: absolute; top: 0; bottom: 0; right: -4px; width: 8px;
+  z-index: 6; cursor: col-resize; touch-action: none;
+}
+.side-resizer::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 4px; width: 1px;
+  background: transparent; transition: background 0.12s ease;
+}
+.side-resizer:hover::after,
+.side-resizer.dragging::after { background: var(--brand); }
+/* 拖拽中：整窗保持 col-resize 光标、屏蔽文本选择，避免拖出选区 */
+body.side-resizing { cursor: col-resize; user-select: none; }
+body.side-resizing .side-resizer::after { background: var(--brand); }
 /* 窄窗口下侧栏改成抽屉：绝对定位浮在正文之上，不再挤压阅读区 */
 .reader-scrim {
   position: absolute; inset: 0; z-index: 21;
@@ -583,10 +606,15 @@ input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 900px) {
   .reader-side {
     position: absolute; z-index: 22; top: 0; bottom: 0; left: 0;
+    /* 抽屉宽度只由这里决定：flex-basis 会盖过 width，必须显式 auto，
+       否则用户拖宽过的 --side-w 会让抽屉溢出窗口 */
+    flex: 0 0 auto;
     width: min(300px, 78vw);
     border-right: 1px solid var(--line-strong);
     box-shadow: 10px 0 26px rgba(17, 24, 39, 0.16);
   }
+  /* 抽屉宽度由媒体查询固定，不提供拖拽 */
+  .side-resizer { display: none; }
   .reader-title { max-width: 46vw; }
 }
 

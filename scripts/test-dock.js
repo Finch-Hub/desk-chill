@@ -24,6 +24,7 @@ let bounds = { x: 300, y: 120, width: 950, height: 682 };
 let maximized = false;
 let skipTaskbar = false;
 let alwaysOnTop = false;
+let alwaysOnTopLevel = 'normal';
 
 const fakeWin = {
   on() {},
@@ -36,7 +37,11 @@ const fakeWin = {
   isFullScreen: () => false,
   setSkipTaskbar: (v) => { skipTaskbar = !!v; },
   isAlwaysOnTop: () => alwaysOnTop,
-  setAlwaysOnTop: (v) => { alwaysOnTop = !!v; },
+  // 记录 level：动画期间会临时用 'pop-up-menu'，结束后必须还原成用户的置顶层级
+  setAlwaysOnTop: (v, level) => {
+    alwaysOnTop = !!v;
+    alwaysOnTopLevel = v ? (level || 'floating') : 'normal';
+  },
   moveTop: () => {},
 };
 
@@ -205,6 +210,42 @@ async function main() {
   check('暂停期内不收起', engine.state === 'NORMAL', { state: engine.state });
   run(3000, engine);
   check('暂停结束后恢复自动收起', engine.state === 'DOCKED', { state: engine.state });
+
+  console.log('\n用例 12：置顶窗口在贴边动画后仍保持置顶（回归点）');
+  if (engine.state === 'DOCKED') { await engine.undock('test-reset'); await settle(); }
+  // 模拟主进程点「置顶」：窗口被设成 floating
+  alwaysOnTop = true;
+  alwaysOnTopLevel = 'floating';
+  engine.update({ alwaysOnTop: true });
+  await engine.dock('left', 'manual');
+  check('收起后仍置顶', alwaysOnTop === true, { top: alwaysOnTop });
+  check('收起动画结束后层级回到 floating', alwaysOnTopLevel === 'floating', { level: alwaysOnTopLevel });
+  check('snapshot 暴露置顶状态', engine.snapshot().alwaysOnTop === true);
+  await engine.undock('renderer');
+  await settle();
+  check('展开后仍置顶且层级正确', alwaysOnTop === true && alwaysOnTopLevel === 'floating', {
+    top: alwaysOnTop,
+    level: alwaysOnTopLevel,
+  });
+
+  console.log('\n用例 13：取消置顶后，贴边动画不再把窗口留在最上层');
+  engine.update({ alwaysOnTop: false });
+  alwaysOnTop = false;
+  alwaysOnTopLevel = 'normal';
+  await engine.dock('left', 'manual');
+  check('收起动画结束后未置顶', alwaysOnTop === false, { top: alwaysOnTop });
+  await engine.undock('renderer');
+  await settle();
+  check('展开动画结束后未置顶', alwaysOnTop === false, { top: alwaysOnTop });
+
+  console.log('\n用例 14：enabled=false（关收纳 / 置顶）时手动收起被拒');
+  if (engine.state === 'DOCKED') { await engine.undock('test-reset'); await settle(); }
+  engine.update({ enabled: false });
+  const boxBefore = { ...bounds };
+  await engine.dock('left', 'manual');
+  check('不会进入 DOCKED', engine.state === 'NORMAL', { state: engine.state });
+  check('窗口位置没有移动', bounds.x === boxBefore.x && bounds.y === boxBefore.y, bounds);
+  engine.update({ enabled: true });
 
   engine.dispose();
   Date.now = realNow;

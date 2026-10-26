@@ -107,13 +107,27 @@ function initChrome() {
   $('#btn-max').onclick = () => window.moyu.win.toggleMaximize();
   $('#btn-close').onclick = () => window.moyu.win.close();
   $('#btn-boss').onclick = () => window.moyu.win.boss();
+  $('#btn-pin').onclick = async () => {
+    const on = await window.moyu.win.toggleAlwaysOnTop();
+    paintPin(on);
+    toast(on ? '已置顶：窗口会浮在其他程序之上' : '已取消置顶', '', 1900);
+  };
   $('#btn-dock').onclick = async () => {
+    // 置顶与贴边互斥：置顶时先拦住并解释，别让人以为按钮坏了
+    if (await window.moyu.win.alwaysOnTop()) {
+      toast('置顶和贴边互斥：先点图钉取消置顶，再收成边条', '', 3000);
+      return;
+    }
     const s = await window.moyu.dock.state();
     if (s.state === 'DOCKED') {
       window.moyu.dock.undock();
     } else {
       const edge = state.settings.dockEdge || 'left';
-      window.moyu.dock.dock(edge);
+      const ok = await window.moyu.dock.dock(edge);
+      if (ok === false) {
+        toast('当前处于置顶状态，贴边已取消', 'err', 2600);
+        return;
+      }
       const label = edge === 'left' ? '左' : edge === 'right' ? '右' : '上';
       toast(`已收成${label}边条：鼠标移到屏幕边缘展开，移开窗口会自动收回`, '', 3200);
     }
@@ -126,6 +140,9 @@ function initChrome() {
     relayoutPdf();
   });
 
+  // 初始置顶状态（可能来自上次退出时的存档）
+  window.moyu.win.state().then((s) => paintPin(s && s.alwaysOnTop));
+
   // 双击标题栏切换最大化
   const topbar = $('#topbar');
   topbar.addEventListener('dblclick', (e) => {
@@ -134,8 +151,30 @@ function initChrome() {
   });
 }
 
-/* ------------------------------ 全局快捷键 ------------------------------ */
+/**
+ * 图钉按钮 + 设置页复选框的状态同步。
+ * 置顶可能从三个入口变：标题栏按钮、托盘菜单、设置页，
+ * 主进程统一广播 win:always-on-top，这里只负责把 UI 刷成同一个值。
+ */
+function paintPin(on) {
+  const btn = $('#btn-pin');
+  const value = !!on;
+  if (btn) {
+    btn.classList.toggle('on', value);
+    btn.title = value ? '取消置顶（当前钉在最上层）' : '窗口置顶（钉在最上层）';
+    btn.setAttribute('aria-pressed', value ? 'true' : 'false');
+  }
+  // 置顶与贴边互斥：置顶时把贴边按钮标成不可用态（仍可点，点了会解释原因）
+  const dockBtn = $('#btn-dock');
+  if (dockBtn) {
+    dockBtn.classList.toggle('blocked', value);
+    dockBtn.title = value ? '置顶时不贴边（先取消置顶）' : '收成边条（贴边）';
+  }
+  const cb = $('#s-alwaysOnTop');
+  if (cb) cb.checked = value;
+}
 
+/* ------------------------------ 全局快捷键 ------------------------------ */
 function initHotkeys() {
   window.addEventListener('keydown', (e) => {
     const inInput = e.target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName);
@@ -197,6 +236,8 @@ function initHotkeys() {
 /* ------------------------------ IPC 事件 ------------------------------ */
 
 function initBridge() {
+  window.moyu.win.onAlwaysOnTop(({ on }) => paintPin(on));
+
   window.moyu.dock.onState((snap) => {
     state.dock = snap;
     $('#btn-dock').classList.toggle('on', snap.state === 'DOCKED');
@@ -291,6 +332,8 @@ async function boot() {
     on('view:goto', (v) => setView(v));
     on('open-book', (id) => openAndRead(id));
     on('side:changed', () => syncSideScrim());
+    // 点正文区域收起侧栏（reader.js 派发，宽窗口下侧栏是常驻的，没有遮罩可点）
+    on('side:close', () => closeSide());
     on('library:refresh', () => refreshLibrary());
     on('quick-sites:changed', () => refreshQuickSites());
     on('settings:changed', (s) => {

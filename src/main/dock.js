@@ -37,6 +37,13 @@ class DockEngine {
         peek: 4, // 露出像素
         anim: 300, // 动画时长 ms
         autoDockOnLeave: false, // 移出即收起（默认关，按 QQ 行为保持收起）
+        /**
+         * 用户是否把窗口设为「置顶」。
+         * 动画期间本引擎会临时用 'pop-up-menu' 级别压住其它窗口，
+         * 结束后必须按这个值还原用户的置顶意图（否则贴一次边置顶就丢了）。
+         */
+        alwaysOnTop: false,
+        onTopLevel: 'floating', // 用户置顶时使用的层级（Windows 上等价 HWND_TOPMOST）
         onState: () => {},
         logEvent: () => {},
       },
@@ -333,6 +340,9 @@ class DockEngine {
 
   /** 收起：窗口整体移出屏幕，只留 peek 像素 */
   async dock(edge, reason = 'drag') {
+    // enabled=false 时任何路径都不许收起：
+    // 关掉「启用边缘收纳」、或窗口处于置顶（置顶与贴边互斥，由主进程把 enabled 压成 false）
+    if (!this.opts.enabled) return;
     if (this.state !== STATE.NORMAL || this._busy) return;
     const win = this.win;
     const b = win.getBounds();
@@ -476,7 +486,10 @@ class DockEngine {
         if (token !== this._animToken) return;
         this._busy = false;
         try {
-          if (!wasOnTop) win.setAlwaysOnTop(false);
+          // 用户置顶 -> 还原到正常的置顶层级（动画期间被临时提到 'pop-up-menu'）
+          // 未置顶 -> 只在动画开始前不是置顶时才关掉，保持原语义
+          if (this.opts.alwaysOnTop) win.setAlwaysOnTop(true, this.opts.onTopLevel || 'floating');
+          else if (!wasOnTop) win.setAlwaysOnTop(false);
         } catch { /* 忽略 */ }
         this._forgetProgrammaticMove();
         resolve();
@@ -536,6 +549,8 @@ class DockEngine {
       peekWidth: this.opts.peek,
       anim: this.opts.anim,
       autoDockOnLeave: this.opts.autoDockOnLeave,
+      /** 窗口置顶（与 pinned 无关：pinned 是「不自动收起」，这个是「浮在最上层」） */
+      alwaysOnTop: !!this.opts.alwaysOnTop,
     };
   }
 

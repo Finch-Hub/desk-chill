@@ -10,7 +10,7 @@
   <!-- 顶栏：视图切换 + 窗口控制（frame:false 需要自绘标题栏） -->
   <header class="topbar" id="topbar">
     <div class="brand">
-      <span class="brand-dot"></span>
+      <img class="brand-logo" src="../assets/icon.png" alt="鱼塘" draggable="false" />
       <span class="brand-name">鱼塘</span>
     </div>
     <nav class="nav" id="nav">
@@ -20,11 +20,24 @@
       <button class="nav-btn" data-view="settings" title="Ctrl+,">设置</button>
     </nav>
     <div class="topbar-right">
+      <!-- 置顶（钉在最上层）：与「收成边条」是两个独立能力，可同时开启 -->
+      <button class="icon-btn" id="btn-pin" title="窗口置顶（钉在最上层）">
+        <!-- 竖版图钉：15px 下纯描边会糊成一团，主体加一层淡填充更清楚 -->
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17.2V22"/><path d="M8.4 4h7.2v3.1l3 3v1.7h-4.3V17h-4.6v-5.2H5.4v-1.7l3-3z" fill="currentColor" fill-opacity="0.18"/></svg>
+      </button>
       <button class="icon-btn" id="btn-dock" title="收成边条（贴边）">
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2 3h12M2 8h12M2 13h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>
+        <!-- 左边一条实心「边条」+ 右边的窗口框：实心/空心对比，15px 且置灰时也能分辨 -->
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none">
+          <rect x="1.7" y="2.9" width="3" height="10.2" rx="1.5" fill="currentColor"/>
+          <rect x="5.7" y="2.9" width="8.6" height="10.2" rx="1.9" stroke="currentColor" stroke-width="1.5"/>
+        </svg>
       </button>
       <button class="icon-btn" id="btn-boss" title="老板键：隐藏到托盘（F8）">
-        <svg viewBox="0 0 16 16" width="15" height="15"><path d="M2 6.5 8 2l6 4.5V14H2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+        <!-- 眼睛被划掉 = 隐身/看不见，比房子更贴「一键藏起来」 -->
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+          <path d="M1.9 8S4.3 4.3 8 4.3 14.1 8 14.1 8 11.7 11.7 8 11.7 1.9 8 1.9 8Z"/>
+          <path d="M3.1 12.9 12.9 3.1" stroke-width="1.8" stroke-linecap="round"/>
+        </svg>
       </button>
       <span class="win-sep"></span>
       <button class="icon-btn win-btn" id="btn-min" title="最小化">
@@ -153,6 +166,8 @@
             </div>
             <div class="find-results" id="find-results"></div>
           </div>
+          <!-- 目录宽度拖拽手柄：双击恢复默认宽度 -->
+          <div class="side-resizer" id="side-resizer" title="拖动调整宽度，双击恢复默认" role="separator" aria-orientation="vertical"></div>
         </aside>
 
         <div class="reader-stage" id="reader-stage">
@@ -276,7 +291,13 @@
         </div>
 
         <div class="card">
-          <h3>贴边收起</h3>
+          <h3>窗口与贴边</h3>
+          <label class="field"><span>窗口置顶</span><input type="checkbox" id="s-alwaysOnTop" /></label>
+          <p class="hint">
+            置顶后窗口始终浮在其他程序上面（钉在桌面最上层），切到别的窗口也不会被盖住。<br />
+            <b>置顶与贴边互斥</b>：置顶时不会贴边（拖到边缘也不吸附），收成边条时自动取消置顶。<br />
+            与标题栏的图钉按钮、托盘菜单里的「窗口置顶」是同一个开关，置顶状态会记住。
+          </p>
           <label class="field"><span>启用边缘收纳</span><input type="checkbox" id="s-edgeDockEnabled" /></label>
           <div class="field"><span>贴边方向</span>
             <div class="seg" id="s-edge-seg">
@@ -291,7 +312,8 @@
           <p class="hint">
             把窗口拖到屏幕边缘松开即收成边条；鼠标移到边条上会自动展开，<b>鼠标移开窗口就自动收回边条</b>（不用再点按钮）。<br />
             展开后想一直留着用：把窗口从边缘拖开、或最大化窗口即可取消自动收起。<br />
-            上面这个开关额外覆盖「窗口只是贴着边缘、但没从边条展开」的情形。当前方向在这里改只影响「手动收起」。
+            上面这个开关额外覆盖「窗口只是贴着边缘、但没从边条展开」的情形。当前方向在这里改只影响「手动收起」。<br />
+            窗口处于<b>置顶</b>时边缘收纳不生效（两者互斥），取消置顶后自动恢复。
           </p>
         </div>
 

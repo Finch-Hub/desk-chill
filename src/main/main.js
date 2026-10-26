@@ -42,6 +42,13 @@ const isDev = process.argv.includes('--dev');
 const HOME_URL_DEFAULT = 'file://' + path.join(__dirname, 'home.html').replace(/\\/g, '/');
 /** 导航卡住多久算超时（毫秒）：网络被静默丢包时别让用户无限等 */
 const NAV_TIMEOUT_MS = 15000;
+/**
+ * 窗口置顶使用的层级。
+ * Windows 上 setAlwaysOnTop(true) 实际就是 SetWindowPos(HWND_TOPMOST)，
+ * 用 'floating' 而不是 'screen-saver'：前者只压普通窗口，
+ * 后者会盖住 UAC 弹窗/输入法/任务栏，摸鱼工具没这个必要也不安全。
+ */
+const ON_TOP_LEVEL = 'floating';
 
 /* ------------------------------------------------------------------ *
  * 主动导航超时（作用域：模块顶层，导航 / 重试 / 重载共用）
@@ -276,6 +283,8 @@ const DEFAULT_SETTINGS = {
   lineHeight: 1.8,
   bgPreset: 'white', // white | sepia | dark
   fontFamily: '',
+  // 侧栏（目录/书签/搜索）宽度：0 = 跟随窗口自适应；>0 = 用户拖拽后的固定像素宽
+  sideWidth: 0,
   // TXT 阅读滚轮行为：scroll=连贯滚动（网页式，默认） / screen=整屏翻动
   wheelMode: 'scroll',
   dockEdge: 'left',
@@ -283,6 +292,8 @@ const DEFAULT_SETTINGS = {
   dockAnim: 300,
   autoDockOnLeave: false,
   edgeDockEnabled: true,
+  // 窗口置顶（钉在最上层）：与「贴边收起」独立，收起成边条时同样生效
+  alwaysOnTop: false,
   // 内置浏览器网络：system=跟随系统代理（默认） / direct=直连 / manual=手动填
   proxyMode: 'system',
   proxyRules: '',
@@ -354,19 +365,34 @@ function saveProgress() {
 
 /* ------------------------------ 图标 ------------------------------ */
 
-function appIcon(size = 64) {
-  // 运行时绘制一个「书页 + 收纳条」图标，避免依赖外部图片资源
-  const canvasSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64">
-    <rect width="64" height="64" rx="14" fill="#2f6feb"/>
-    <rect x="14" y="14" width="30" height="36" rx="4" fill="#ffffff"/>
-    <rect x="20" y="22" width="18" height="3" rx="1.5" fill="#2f6feb" opacity="0.55"/>
-    <rect x="20" y="30" width="18" height="3" rx="1.5" fill="#2f6feb" opacity="0.55"/>
-    <rect x="20" y="38" width="12" height="3" rx="1.5" fill="#2f6feb" opacity="0.55"/>
-    <rect x="46" y="14" width="5" height="36" rx="2.5" fill="#ffd166"/>
-  </svg>`;
-  return nativeImage.createFromDataURL(
-    'data:image/svg+xml;base64,' + Buffer.from(canvasSvg).toString('base64'),
-  );
+/**
+ * 图标资源在 src/assets/：icon.png（窗口/任务栏）、tray.png（托盘）。
+ * 用 readFileSync + createFromBuffer 而不是 createFromPath —— 打包后资源在 asar 里，
+ * 走 Node 的 fs 一定能读到。生成脚本见 scripts/make-icon.js。
+ */
+const ICON_DIR = path.join(__dirname, '..', 'assets');
+const iconCache = new Map();
+
+function loadIcon(file) {
+  if (iconCache.has(file)) return iconCache.get(file);
+  let img = nativeImage.createEmpty();
+  try {
+    img = nativeImage.createFromBuffer(fs.readFileSync(path.join(ICON_DIR, file)));
+  } catch (err) {
+    console.error('[icon] 载入失败', file, err && err.message);
+  }
+  iconCache.set(file, img);
+  return img;
+}
+
+/** 窗口 / 任务栏图标（512px 主图） */
+function appIcon() {
+  return loadIcon('icon.png');
+}
+
+/** 托盘图标（64px，系统通知区会按 DPI 自己缩） */
+function trayIcon() {
+  return loadIcon('tray.png');
 }
 
 /* ------------------------------ 窗口 ------------------------------ */
@@ -409,7 +435,7 @@ function createWindow() {
     show: false,
     backgroundColor: '#f6f7f9',
     title: '鱼塘',
-    icon: appIcon(256),
+    icon: appIcon(),
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -425,8 +451,11 @@ function createWindow() {
   win.loadURL('app://local/renderer/index.html');
 
   win.once('ready-to-show', () => {
+    // 置顶要在 show 之前落下去：否则先显示为普通窗口、再跳到最上层，会闪一下
+    applyAlwaysOnTopToWindow();
     // 上次退出时处于贴边状态 -> 直接恢复贴边（PRD 停靠位置记忆）
-    if (settings.edgeDockEnabled && windowState.dockMode === 'DOCKED') {
+    // 置顶与贴边互斥：存的是置顶的话要普通显示，不能又贴到屏幕外
+    if (settings.edgeDockEnabled && !settings.alwaysOnTop && windowState.dockMode === 'DOCKED') {
       dock.state = 'NORMAL';
       win.setBounds(bounds);
       dock.restoreBounds = { ...bounds };
@@ -442,7 +471,11 @@ function createWindow() {
     notifyLayout();
     if (browserVisible) layoutBrowserView();
   });
-  win.on('show', () => reapplyBrowserVisibility());
+  win.on('show', () => {
+    // 从托盘 show 回来时再落一次置顶：窗口隐藏一段时间后，个别 shell 组合会丢 WS_EX_TOPMOST
+    applyAlwaysOnTopToWindow();
+    reapplyBrowserVisibility();
+  });
   win.on('restore', () => reapplyBrowserVisibility());
 
   win.on('close', (e) => {
@@ -478,7 +511,8 @@ function createWindow() {
   const runningE2E = process.env.MOYU_E2E || process.env.MOYU_E2E_BROWSER
     || process.env.MOYU_E2E_LAYOUT || process.env.MOYU_E2E_NET
     || process.env.MOYU_E2E_FLOW || process.env.MOYU_E2E_REAL
-    || process.env.MOYU_E2E_SHOTS;
+    || process.env.MOYU_E2E_SHOTS || process.env.MOYU_E2E_SIDE
+    || process.env.MOYU_E2E_ICON || process.env.MOYU_E2E_PIN;
   if (isDev && !runningE2E) win.webContents.openDevTools({ mode: 'detach' });
   if (isDev && process.env.MOYU_E2E) {
     try {
@@ -529,13 +563,40 @@ function createWindow() {
       console.error('[shots] 注入失败', err);
     }
   }
+  if (isDev && process.env.MOYU_E2E_SIDE) {
+    try {
+      require('../../scripts/e2e-side.js')(win, fs);
+    } catch (err) {
+      console.error('[side] 注入失败', err);
+    }
+  }
+  if (isDev && process.env.MOYU_E2E_ICON) {
+    try {
+      require('../../scripts/e2e-icon.js')(win, fs, { get tray() { return tray; } });
+    } catch (err) {
+      console.error('[icon] 注入失败', err);
+    }
+  }
+  if (isDev && process.env.MOYU_E2E_PIN) {
+    try {
+      require('../../scripts/e2e-pin.js')(win, fs, {
+        get settings() { return settings; },
+        setAlwaysOnTop,
+      });
+    } catch (err) {
+      console.error('[pin] 注入失败', err);
+    }
+  }
 
   dock = new DockEngine(win, {
-    enabled: settings.edgeDockEnabled,
+    // 置顶时不贴边：enabled 由「用户开关」和「是否置顶」共同决定
+    enabled: dockEnabledNow(),
     edge: windowState.dockEdge || settings.dockEdge,
     peek: settings.dockPeek,
     anim: settings.dockAnim,
     autoDockOnLeave: settings.autoDockOnLeave,
+    alwaysOnTop: !!settings.alwaysOnTop,
+    onTopLevel: ON_TOP_LEVEL,
     logEvent: (ev, props) => store.logEvent(ev, props),
     onState: (snap) => {
       windowState.dockMode = snap.state;
@@ -543,9 +604,14 @@ function createWindow() {
       saveWindowState();
       if (win && !win.isDestroyed()) win.webContents.send('dock:state', snap);
       reapplyBrowserVisibility();
+      // 贴边不置顶：一旦收起成边条，立刻解除置顶（互斥的另一半）
+      if (snap.state === 'DOCKED' && settings.alwaysOnTop) setAlwaysOnTop(false, 'dock');
       rebuildTrayMenu();
     },
   });
+
+  // 恢复上次退出时的置顶状态（窗口此刻还没 show，ready-to-show 里会再落一次）
+  applyAlwaysOnTopToWindow();
 }
 
 function notifyLayout() {
@@ -554,6 +620,62 @@ function notifyLayout() {
     maximized: win.isMaximized(),
     fullscreen: win.isFullScreen(),
   });
+}
+
+/* ------------------------------ 窗口置顶 ------------------------------ */
+
+/**
+ * 把 settings.alwaysOnTop 落到窗口和贴边引擎上（纯同步，不写盘、不广播）。
+ *
+ * 两个必须同步的地方：
+ *  1) 窗口本身：true 用 ON_TOP_LEVEL，false 必须显式传 'normal'，
+ *     否则残留的层级会让它「取消置顶了还浮在上面」。
+ *  2) DockEngine：贴边动画会把窗口临时提到 'pop-up-menu'，
+ *     它需要知道用户的真实意图，动画结束才能还原对。
+ *
+ * 置顶与贴边**互斥**（产品约定）：
+ *  - 置顶期间把引擎 enabled 压成 false —— 拖到边缘不吸附、不自动收起；
+ *    update() 内部会把正在收起的窗口展开回来（因为窗口不该又飞出去又置顶）。
+ *  - 用户设置 edgeDockEnabled 本身不动，取消置顶后自动恢复。
+ */
+function applyAlwaysOnTopToWindow() {
+  const on = !!settings.alwaysOnTop;
+  if (dock) {
+    dock.update({
+      alwaysOnTop: on,
+      enabled: !!settings.edgeDockEnabled && !on,
+    });
+  }
+  if (win && !win.isDestroyed()) {
+    try {
+      win.setAlwaysOnTop(on, on ? ON_TOP_LEVEL : 'normal');
+    } catch { /* 窗口可能已销毁 */ }
+  }
+}
+
+/** 贴边引擎的 enabled 只看「用户开了边缘收纳」且「当前没置顶」 */
+function dockEnabledNow() {
+  return !!settings.edgeDockEnabled && !settings.alwaysOnTop;
+}
+
+/**
+ * 用户主动切换置顶（标题栏图钉 / 托盘菜单 / 设置页）。
+ * 统一走这里，保证「窗口状态 + 存档 + 托盘勾选 + 渲染层按钮」四处一致。
+ */
+function setAlwaysOnTop(on, reason = 'api') {
+  const next = !!on;
+  const changed = settings.alwaysOnTop !== next;
+  settings.alwaysOnTop = next;
+  if (changed) saveSettings();
+  applyAlwaysOnTopToWindow();
+  store.logEvent('win_always_on_top', { on: next, reason });
+  rebuildTrayMenu();
+  if (win && !win.isDestroyed()) {
+    win.webContents.send('win:always-on-top', { on: next, reason });
+    // 设置页的复选框也依赖这份数据，跟着广播一次（成本可忽略）
+    if (changed) win.webContents.send('settings:changed', settings);
+  }
+  return next;
 }
 
 /* ------------------------------ 托盘与老板键 ------------------------------ */
@@ -626,6 +748,13 @@ function rebuildTrayMenu() {
         if (trayHidden) restoreFromTray();
         if (win) win.webContents.send('app:goto', 'settings');
       } },
+    {
+      // 托盘里也要能一键置顶：老板键隐藏后回来，常常顺手就想钉住
+      label: '窗口置顶',
+      type: 'checkbox',
+      checked: !!settings.alwaysOnTop,
+      click: (item) => setAlwaysOnTop(item.checked, 'tray'),
+    },
     { type: 'separator' },
     { label: '退出（需确认）', click: () => requestQuit() },
   ]);
@@ -634,7 +763,7 @@ function rebuildTrayMenu() {
 }
 
 function createTray() {
-  tray = new Tray(appIcon(32));
+  tray = new Tray(trayIcon());
   rebuildTrayMenu();
   tray.on('click', () => toggleBoss());
 }
@@ -1068,7 +1197,8 @@ function registerIpc() {
     // 联动：贴边参数、老板键、开机自启
     if (dock && ('dockPeek' in patch || 'dockAnim' in patch || 'autoDockOnLeave' in patch || 'edgeDockEnabled' in patch)) {
       dock.update({
-        enabled: settings.edgeDockEnabled,
+        // 置顶时贴边始终关闭（互斥），这里不能直接用用户的 edgeDockEnabled
+        enabled: dockEnabledNow(),
         peek: settings.dockPeek,
         anim: settings.dockAnim,
         autoDockOnLeave: settings.autoDockOnLeave,
@@ -1083,6 +1213,11 @@ function registerIpc() {
       try {
         app.setLoginItemSettings({ openAtLogin: !!settings.launchAtStartup, args: [] });
       } catch { /* 忽略 */ }
+    }
+    // 置顶来自设置页：走统一入口，标题栏图钉与托盘勾选才会同步刷新
+    // （内部 changed 判定基于已更新的 settings，不会重复写盘/重复广播 settings）
+    if ('alwaysOnTop' in patch) {
+      setAlwaysOnTop(settings.alwaysOnTop, 'settings');
     }
     if ('homeUrl' in patch && browserView) {
       // 首页变更后不强制导航，下次新标签页生效
@@ -1105,12 +1240,14 @@ function registerIpc() {
     settings = { ...DEFAULT_SETTINGS, quickSites: [...DEFAULT_SETTINGS.quickSites] };
     saveSettings();
     dock && dock.update({
-      enabled: settings.edgeDockEnabled,
+      enabled: dockEnabledNow(),
       peek: settings.dockPeek,
       anim: settings.dockAnim,
       autoDockOnLeave: settings.autoDockOnLeave,
     });
     registerBossKey();
+    setAlwaysOnTop(settings.alwaysOnTop, 'settings-reset');
+    rebuildTrayMenu();
     return settings;
   });
 
@@ -1135,8 +1272,14 @@ function registerIpc() {
   ipcMain.handle('win:state', () => ({
     maximized: !!(win && win.isMaximized()),
     fullscreen: !!(win && win.isFullScreen()),
+    alwaysOnTop: !!settings.alwaysOnTop,
     trayHidden,
   }));
+
+  /* ---- 窗口置顶 ---- */
+  ipcMain.handle('win:always-on-top', () => !!settings.alwaysOnTop);
+  ipcMain.handle('win:always-on-top-set', (_e, on) => setAlwaysOnTop(!!on, 'renderer-set'));
+  ipcMain.handle('win:always-on-top-toggle', () => setAlwaysOnTop(!settings.alwaysOnTop, 'toggle'));
 
   /* ---- 贴边 ---- */
   ipcMain.handle('dock:state', () => (dock ? dock.snapshot() : { state: 'NORMAL' }));
@@ -1146,11 +1289,13 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle('dock:dock', (_e, edge) => {
+    // 置顶与贴边互斥：置顶时拒绝贴边（渲染层负责提示「先取消置顶」）
+    if (settings.alwaysOnTop) return false;
     if (dock && dock.state === 'NORMAL') dock.dock(edge || settings.dockEdge, 'manual');
     return true;
   });
   ipcMain.handle('dock:apply', (_e, edge) => {
-    if (!dock || !win) return false;
+    if (!dock || !win || settings.alwaysOnTop) return false;
     if (dock.state === 'DOCKED') dock.undock('apply');
     setTimeout(() => dock.dock(edge, 'manual'), 180);
     return true;

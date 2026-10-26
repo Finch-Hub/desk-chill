@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld('moyu', {
     boss: () => ipcRenderer.send('win:boss'),
     state: () => ipcRenderer.invoke('win:state'),
     onLayout: (cb) => on('win:layout', cb),
+    /** 窗口置顶（钉在最上层） */
+    alwaysOnTop: () => ipcRenderer.invoke('win:always-on-top'),
+    setAlwaysOnTop: (on) => ipcRenderer.invoke('win:always-on-top-set', on),
+    toggleAlwaysOnTop: () => ipcRenderer.invoke('win:always-on-top-toggle'),
+    onAlwaysOnTop: (cb) => on('win:always-on-top', cb),
   },
   dock: {
     state: () => ipcRenderer.invoke('dock:state'),
